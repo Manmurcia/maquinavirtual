@@ -1,0 +1,74 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bookworm64"
+  config.vm.hostname = "lolasvip-ctf"
+
+  # Red tipo "host-only" / interna: la VM solo es visible en tu red local
+  # de laboratorio, nunca expuesta directamente a Internet.
+  config.vm.network "private_network", ip: "192.168.56.20"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "LolasVIP-CTF"
+    vb.memory = 3072
+    vb.cpus = 2
+    # Muestra la ventana de VirtualBox con el escritorio grafico en lugar
+    # de correr la VM en segundo plano (headless).
+    vb.gui = true
+  end
+
+  # Sincroniza todo el proyecto dentro de la VM
+  config.vm.synced_folder ".", "/vagrant"
+
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+    export DEBIAN_FRONTEND=noninteractive
+
+    # --- Entorno de escritorio grafico (XFCE + gestor de sesion LightDM) ---
+    apt-get update
+    apt-get install -y --no-install-recommends xfce4 xfce4-goodies lightdm firefox-esr accountsservice xserver-xorg xinit
+    # accountsservice es obligatorio: sin el, LightDM falla al intentar listar
+    # usuarios via D-Bus (org.freedesktop.Accounts) y queda en loop de reinicio.
+    # xserver-xorg/xinit tambien son obligatorios: --no-install-recommends excluye
+    # el servidor X (viene como "Recommends" de xfce4/lightdm), y sin el, LightDM
+    # no tiene nada que lanzar como pantalla y muere al iniciar.
+    # Nota: no se instalan paquetes virtualbox-guest-x11/utils porque la box ya
+    # trae las Guest Additions de fabrica (se ven en el log de "vagrant up").
+    systemctl set-default graphical.target
+    systemctl enable lightdm
+
+    # El usuario por defecto de la box es "vagrant" / password "vagrant".
+    # Se habilita login automatico de ese usuario en el escritorio para
+    # comodidad dentro del laboratorio (entorno aislado, no productivo).
+    mkdir -p /etc/lightdm/lightdm.conf.d
+    cat > /etc/lightdm/lightdm.conf.d/50-autologin.conf <<EOF
+[Seat:*]
+autologin-user=vagrant
+autologin-user-timeout=0
+EOF
+
+    # --- Docker ---
+    apt-get install -y ca-certificates curl gnupg
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    usermod -aG docker vagrant
+
+    cd /vagrant
+    docker compose up -d --build
+
+    echo "======================================================"
+    echo " lolasvip CTF desplegado. Usuario del escritorio: vagrant / vagrant"
+    echo " Accede desde Kali (u otro host) a:"
+    echo "   http://192.168.56.20:8080   (web)"
+    echo "   ftp://192.168.56.20:2121    (ftp anonimo)"
+    echo "   ssh -p 2222 admin@192.168.56.20"
+    echo "   redis-cli -h 192.168.56.20 -p 6379"
+    echo "======================================================"
+
+    # Activa el modo grafico de inmediato (sin reiniciar), para que LightDM
+    # arranque y se vea el escritorio XFCE apenas termine el aprovisionamiento.
+    systemctl isolate graphical.target
+  SHELL
+end
