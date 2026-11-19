@@ -1,0 +1,1 @@
+El acceso FTP anonimo deberia estar deshabilitado en cualquier servidor de produccion.

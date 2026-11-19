@@ -1,0 +1,4 @@
+Recordatorio para el equipo:
+Cambiar la contrasena temporal del servidor SSH de pruebas (usuario admin)
+antes de pasar a produccion. Sigue siendo la que pusimos para las pruebas
+iniciales.

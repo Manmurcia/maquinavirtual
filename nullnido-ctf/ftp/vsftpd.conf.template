@@ -1,0 +1,22 @@
+listen=YES
+listen_ipv6=NO
+
+# VULNERABLE A PROPOSITO (Mesa 1): anonymous_enable=YES + no_anon_password=YES
+# significa acceso anonimo real - cualquier password (incluso vacia) es aceptada.
+anonymous_enable=YES
+no_anon_password=YES
+local_enable=NO
+write_enable=NO
+anon_root=/var/ftp/data
+
+dirmessage_enable=YES
+xferlog_enable=YES
+connect_from_port_20=YES
+
+pasv_enable=YES
+pasv_address=${PASV_ADDRESS}
+pasv_min_port=21100
+pasv_max_port=21110
+
+# Evita que vsftpd se bloquee por el sandbox de syscalls dentro de un contenedor.
+seccomp_sandbox=NO

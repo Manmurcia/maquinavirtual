@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  # Mesas 4-14: Aplicación web "Lola's VIP"
+  web:
+    build: ./web
+    container_name: nullnido-web
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    networks:
+      - nullnido-net
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: nullnido-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass123
+      MYSQL_DATABASE: nullnido
+      MYSQL_USER: nullnido_app
+      MYSQL_PASSWORD: app_pass_2024
+    volumes:
+      - ./web/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - nullnido-net
+    restart: unless-stopped
+
+  # Mesa 1: FTP anónimo
+  ftp:
+    # Construimos nuestro propio vsftpd en vez de usar fauria/vsftpd: esa imagen
+    # NO hace anonymous real — "FTP_USER: anonymous" solo crea un usuario normal
+    # llamado "anonymous" con una contraseña ALEATORIA (distinta cada arranque,
+    # visible solo en los logs del contenedor), por eso ninguna contraseña
+    # funcionaba nunca. Nuestro Dockerfile usa anonymous_enable=YES real.
+    build: ./ftp
+    container_name: nullnido-ftp
+    environment:
+      # IMPORTANTE: en modo pasivo, vsftpd le dice al cliente a qué IP conectarse
+      # para transferir archivos. Debe ser la IP real por la que se accede a esta
+      # VM (la fija del Vagrantfile: 192.168.56.20). Si despliegas solo con
+      # "docker compose up" en otro host/IP, cambia este valor por la IP (o
+      # nombre) con el que ese host sea alcanzable desde el cliente.
+      PASV_ADDRESS: 192.168.56.20
+    ports:
+      - "2121:21"
+      - "21100-21110:21100-21110"
+    volumes:
+      - ./ftp/data:/var/ftp/data:ro
+    networks:
+      - nullnido-net
+    restart: unless-stopped
+
+  # Mesa 2: SSH con credenciales débiles
+  ssh:
+    build: ./ssh
+    container_name: nullnido-ssh
+    ports:
+      - "2222:22"
+    networks:
+      - nullnido-net
+    restart: unless-stopped
+
+  # Mesa 3: Redis sin autenticación
+  redis:
+    build: ./redis
+    container_name: nullnido-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - nullnido-net
+    restart: unless-stopped
+
+networks:
+  nullnido-net:
+    driver: bridge
